@@ -96,7 +96,7 @@ def create_app(test_config=None):
     if test_config is None:
         app.config.from_pyfile('config.py')
     else:
-        app.config.from_pyfile(test_config)
+        app.config.from_pyfile(test_config) 
     
     database=create_engine(app.config['DB_URL'], encoding='utf-8', max_overflow=0)
     app.database=database
