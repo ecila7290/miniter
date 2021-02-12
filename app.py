@@ -8,6 +8,87 @@ class CustomJSONEncoder(JSONEncoder):
             return list(obj)
         return JSONEncoder.default(self,obj)
 
+def get_user(user_id):
+    user=current_app.database.execute(text("""
+        SELECT
+            id,
+            name,
+            email,
+            profile
+        FROM users
+        WHERE id=:user_id
+    """),{
+        'user_id':user_id
+    }).fetchone()
+
+    return {
+        'id':user['id'],
+        'name':user['name'],
+        'email':user['email'],
+        'profile':user['profile']
+    } if user else None
+
+def insert_user(user):
+    return current_app.database.execute(text("""
+        INSERT INTO users (
+            name,
+            email,
+            profile,
+            hashed_password
+        ) VALUES (
+            :name,
+            :email,
+            :profile,
+            :password
+        )
+    """), user).lastrowid
+
+def insert_tweet(user_tweet):
+    return current_app.database.execute(text("""
+        INSERT INTO tweets (
+            user_id,
+            tweet
+        ) VALUES (
+            :id,
+            :tweet
+        )
+    """), user_tweet).rowcount
+
+def insert_follow(user_follow):
+    return current_app.database.execute(text("""
+        INSERT INTO users_follow_list(
+            user_id,
+            follow_user_id
+        ) VALUES (
+            :id,
+            :follow
+        )
+    """), user_follow).rowcount
+
+def insert_unfollow(user_unfollow):
+    return current_app.database.execute(text("""
+        DELETE FROM users_follow_list
+        WHERE user_id=:id AND follow_user_id=:follow
+    """),user_unfollow)
+
+def get_timeline(user_id):
+    timeline=current_app.database.execute(text("""
+        SELECT DISTINCT
+            t.user_id,
+            t.tweet
+        FROM tweets t
+        LEFT JOIN users_follow_list ufl ON ufl.user_id = :user_id
+        WHERE t.user_id=:user_id
+        OR t.user_id=ufl.follow_user_id
+    """), {
+        'user_id':user_id
+    }).fetchall()
+
+    return [{
+        'user_id':tweet['user_id'],
+        'tweet':tweet['tweet']
+    } for tweet in timeline]
+
 def create_app(test_config=None):
     app=Flask(__name__)
     app.json_encoder=CustomJSONEncoder
@@ -23,40 +104,10 @@ def create_app(test_config=None):
     @app.route('/signup', methods=['POST'])
     def sign_up():
         new_user=request.json
-        new_user_id=app.database.execute(text("""
-            INSERT INTO users (
-                name,
-                email,
-                profile,
-                hashed_password
-            ) VALUES (
-                :name,
-                :email,
-                :profile,
-                :password
-            )
-        """), new_user).lastrowid
+        new_user_id=insert_user(new_user)
+        new_user=get_user(new_user_id)
 
-        row=current_app.database.execute(text("""
-            SELECT
-                id,
-                name,
-                email,
-                profile
-            FROM users
-            WHERE id=:user_id
-        """), {
-            'user_id':new_user_id
-        }).fetchone()
-
-        created_user={
-            'id':row['id'],
-            'name':row['name'],
-            'email':row['email'],
-            'profile':row['profile'],
-        } if row else None
-
-        return jsonify(created_user)
+        return jsonify(new_user)
 
     @app.route('/tweet', methods=['POST'])
     def tweet():
@@ -66,97 +117,28 @@ def create_app(test_config=None):
         if len(tweet)>300:
             return 'over 300 characters', 400
 
-        app.database.execute(text("""
-            INSERT INTO tweets (
-                user_id,
-                tweet
-            ) VALUES (
-                :id,
-                :tweet
-            )
-        """), user_tweet)
+        insert_tweet(user_tweet)
 
         return 'success', 200
 
     @app.route('/follow', methods=['POST'])
     def follow():
-        user_follow=request.json
-        user_id=user_follow['id']
-        
-        app.database.execute(text("""
-            INSERT INTO users_follow_list(
-                user_id,
-                follow_user_id
-            ) VALUES (
-                :id,
-                :follow
-            )
-        """), user_follow)
+        payload=request.json
+        insert_follow(payload)
 
-        rows=app.database.execute(text("""
-            SELECT
-                follow_user_id
-            FROM users_follow_list
-            WHERE user_id=:user_id
-        """),{
-            'user_id':user_id
-        }).fetchall()
-        
-        follows={
-            'user_id':user_id,
-            'follow':[row['follow_user_id'] for row in rows]
-        }
-
-        return jsonify(follows)
+        return 'success', 200
     
     @app.route('/unfollow', methods=['POST'])
     def unfollow():
-        user_follow=request.json
-        user_id=user_follow['id']
-        follow_user_id=user_follow['follow']
+        payload=request.json
+        insert_unfollow(payload)
 
-        app.database.execute(text("""
-            DELETE FROM users_follow_list
-            WHERE user_id=:id AND follow_user_id=:follow
-        """),user_follow)
-
-        rows=app.database.execute(text("""
-            SELECT
-                follow_user_id
-            FROM users_follow_list
-            WHERE user_id=:user_id
-        """),{
-            'user_id':user_id
-        }).fetchall()
-
-        follows={
-            'user_id':user_id,
-            'follow':[row['follow_user_id'] for row in rows]
-        }
-
-        return jsonify(follows)
+        return 'success', 200
 
     @app.route('/timeline/<int:user_id>', methods=['GET'])
     def timeline(user_id):
-        rows=app.database.execute(text("""
-            SELECT DISTINCT
-                t.user_id,
-                t.tweet
-            FROM tweets t
-            LEFT JOIN users_follow_list ufl ON ufl.user_id = :user_id
-            WHERE t.user_id=:user_id
-            OR t.user_id=ufl.follow_user_id
-        """), {
-            'user_id':user_id
-        }).fetchall()
-
-        timeline=[{
-            'user_id':row['user_id'],
-            'tweet':row['tweet']
-        } for row in rows]
-
         return jsonify({
             'user_id':user_id,
-            'timeline':timeline
+            'timeline':get_timeline(user_id)
         })
     return app
