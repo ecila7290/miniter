@@ -130,10 +130,14 @@ def create_app(test_config=None):
     if test_config is None:
         app.config.from_pyfile('config.py')
     else:
-        app.config.from_pyfile(test_config) 
+        app.config.update(test_config) 
     
     database=create_engine(app.config['DB_URL'], encoding='utf-8', max_overflow=0)
     app.database=database
+
+    @app.route('/ping', methods=['GET'])
+    def ping():
+        return 'pong'
 
     @app.route('/signup', methods=['POST'])
     def sign_up():
@@ -201,6 +205,14 @@ def create_app(test_config=None):
         insert_unfollow(payload)
 
         return 'success', 200
+
+    @app.route('/timeline/<int:user_id>', methods=['GET'])
+    def timeline(user_id):        
+        return jsonify({
+            'user_id':user_id,
+            'timeline':get_timeline(user_id)
+        })
+    return app
 
     @app.route('/timeline', methods=['GET'])
     @login_required
