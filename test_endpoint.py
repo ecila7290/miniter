@@ -18,13 +18,21 @@ def api():
 
 def setup_function():
     hashed_password=bcrypt.hashpw(b'password',bcrypt.gensalt())
-    new_user={
+    new_users=[{
         'id':1,
-        'email':'test@mail.com',
+        'email':'test1@mail.com',
         'hashed_password':hashed_password,
-        'name':'test',
-        'profile':'test profile'
+        'name':'test1',
+        'profile':'test1 profile'
+    },
+    {
+        'id':2,
+        'email':'test2@mail.com',
+        'hashed_password':hashed_password,
+        'name':'test2',
+        'profile':'test2 profile'
     }
+    ]
     database.execute(text("""
         INSERT INTO users (
             id,
@@ -39,7 +47,17 @@ def setup_function():
             :profile,
             :hashed_password
         )
-    """), new_user)
+    """), new_users)
+
+    database.execute(text("""
+        INSERT INTO tweets (
+            user_id,
+            tweet
+        ) VALUES (
+            2,
+            'test2 tweet'
+        )
+    """))
 
 def teardown_function():
     database.execute(text("SET FOREIGN_KEY_CHECKS=0"))
@@ -52,9 +70,17 @@ def test_ping(api):
     resp=api.get('/ping')
     assert b'pong' in resp.data
 
+def test_login(api):
+    resp=api.post('/login', data=json.dumps({'email':'test1@mail.com','password':'password'}), content_type='application/json')
+    assert b'access_token' in resp.data
+
+def test_unauthorized(api):
+    resp=api.post('/tweet', data=json.dumps({'tweet':'test tweet'}), content_type='application/json')
+    assert resp.status_code==401
+
 def test_tweet(api):
     # login & access token
-    resp=api.post('/login', data=json.dumps({'email':'test@mail.com', 'password':'password'}), content_type='application/json')
+    resp=api.post('/login', data=json.dumps({'email':'test1@mail.com', 'password':'password'}), content_type='application/json')
     resp_json=json.loads(resp.data.decode('utf-8'))
     access_token=resp_json['access_token']
 
@@ -65,7 +91,7 @@ def test_tweet(api):
     # check tweet
     resp=api.get(f"/timeline/1")
     tweets=json.loads(resp.data.decode('utf-8'))
-
+ 
     assert resp.status_code==200
     assert tweets=={
         'user_id':1,
@@ -77,3 +103,68 @@ def test_tweet(api):
         ]
     }
 
+def test_follow(api):
+    # login & access token
+    resp=api.post('/login', data=json.dumps({'email':'test1@mail.com', 'password':'password'}), content_type='application/json')
+    resp_json=json.loads(resp.data.decode('utf-8'))
+    access_token=resp_json['access_token']
+
+    # test before follow
+    resp=api.get('/timeline/1')
+    tweets=json.loads(resp.data.decode('utf-8'))
+    assert resp.status_code==200
+    assert tweets=={
+        'user_id':1,
+        'timeline':[]
+    }
+
+    # follow
+    resp=api.post('/follow', data=json.dumps({'follow':2}), content_type='application/json', headers={'Authorization':access_token})
+    assert resp.status_code==200
+
+    # check test1 followed test2
+    resp=api.get('/timeline/1')
+    tweets=json.loads(resp.data.decode('utf-8'))
+    assert resp.status_code==200
+    assert tweets=={
+        'user_id':1,
+        'timeline':[{
+            'user_id':2,
+            'tweet':'test2 tweet'
+        }]
+    }
+
+def test_unfollow(api):
+    # login & access token
+    resp=api.post('/login', data=json.dumps({'email':'test1@mail.com', 'password':'password'}), content_type='application/json')
+    resp_json=json.loads(resp.data.decode('utf-8'))
+    access_token=resp_json['access_token']
+
+    # follow test2
+    resp=api.post('/follow', data=json.dumps({'follow':2}), content_type='application/json', headers={'Authorization':access_token})
+    assert resp.status_code==200
+
+    # test before unfollow
+    resp=api.get('/timeline/1')
+    tweets=json.loads(resp.data.decode('utf-8'))
+    assert resp.status_code==200
+    assert tweets=={
+        'user_id':1,
+        'timeline':[{
+            'user_id':2,
+            'tweet':'test2 tweet'
+        }]
+    }
+
+    # unfollow test2
+    resp=api.post('/unfollow', data=json.dumps({'unfollow':2}), content_type='application/json', headers={'Authorization':access_token})
+    assert resp.status_code==200
+
+    # check test1 unfollowed test2
+    resp=api.get('timeline/1')
+    tweets=json.loads(resp.data.decode('utf-8'))
+    assert resp.status_code==200
+    assert tweets=={
+        'user_id':1,
+        'timeline':[]
+    }

@@ -216,7 +216,7 @@ def create_app(test_config=None):
 
     @app.route('/timeline', methods=['GET'])
     @login_required
-    def timeline():
+    def user_timeline():
         user_id=g.user_id
         
         return jsonify({
