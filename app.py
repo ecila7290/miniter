@@ -31,7 +31,7 @@ def create_app(test_config=None):
     tweet_dao=TweetDao(database)
 
     # business layer
-    services=Service
+    services=Service()
     services.user_service=UserService(user_dao,app.config)
     services.tweet_service=TweetService(tweet_dao)
 

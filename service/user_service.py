@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 class UserService:
     def __init__(self, user_dao, config):
         self.user_dao=user_dao
-        self.config=config
+        self.configs=config
     
     def create_new_user(self, new_user):
         new_user['password']=bcrypt.hashpw(new_user['password'].encode('utf-8'),bcrypt.gensalt())
@@ -34,8 +34,8 @@ class UserService:
 
     def generate_access_token(self, user_id):
         payload={'user_id':user_id, 'exp':datetime.utcnow()+timedelta(seconds=60*60*24)}
-        token=jwt.encode(payload, self.config['JWT_SECRET_KEY'],self.config['ALGORITHM'])
-
+        #token=jwt.encode(payload, self.configs.JWT_SECRET_KEY,self.configs.ALGORITHM)
+        token=jwt.encode(payload, self.configs['JWT_SECRET_KEY'],self.configs['ALGORITHM'])
         return token
 
     def follow(self, user_id, follow_id):

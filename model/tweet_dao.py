@@ -13,7 +13,7 @@ class TweetDao:
                 :id,
                 :tweet
             )
-        """), {
+        """), { 
             'id':user_id,
             'tweet':tweet
         }).rowcount

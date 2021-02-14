@@ -38,7 +38,7 @@ def create_endpoints(app, services):
 
     user_service=services.user_service
     tweet_service=services.tweet_service
-
+    
     @app.route('/ping', methods=['GET'])
     def ping():
         return 'pong'

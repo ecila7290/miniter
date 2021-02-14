@@ -78,6 +78,12 @@ def test_unauthorized(api):
     resp=api.post('/tweet', data=json.dumps({'tweet':'test tweet'}), content_type='application/json')
     assert resp.status_code==401
 
+    resp=api.post('/follow', data=json.dumps({'follow':2}), content_type='application/json')
+    assert resp.status_code==401
+
+    resp=api.post('/unfollow', data=json.dumps({'follow':2}), content_type='application/json')
+    assert resp.status_code==401
+
 def test_tweet(api):
     # login & access token
     resp=api.post('/login', data=json.dumps({'email':'test1@mail.com', 'password':'password'}), content_type='application/json')
